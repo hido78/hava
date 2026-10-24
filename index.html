@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wetterstation Hagen - Scientific Telemetry</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0b0f19',
+                        cardbg: '#111827',
+                        bordercolor: '#1f2937',
+                        neonblue: '#38bdf8',
+                        neongreen: '#34d399',
+                        neonyellow: '#fbbf24',
+                        neonpurple: '#c084fc',
+                        neonred: '#f87171'
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'Monaco', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 10px;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .glow-card {
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .glow-card:hover {
+            border-color: rgba(56, 189, 248, 0.3);
+        }
+        .vakit-item.active {
+            background-color: rgba(56, 189, 248, 0.15);
+            border-color: #38bdf8;
+            color: #38bdf8;
+        }
+    </style>
+</head>
+<body class="flex flex-col gap-2 h-full w-full">
+
+    <!-- TOP SECTION: Metrics Grid -->
+    <div class="grid grid-cols-6 gap-2.5 h-[26%] min-h-0">
+        
+        <!-- Metric 1: Temperature & Dew Point -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center text-[11px] font-mono text-gray-400">
+                <span>THERMODYNAMIK</span>
+                <span class="text-neonblue font-bold">°C</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+                <span class="text-3xl xl:text-4xl font-extrabold font-mono text-neonblue tracking-tight" id="val-temp">--</span>
+                <span class="text-xs text-gray-400 font-mono">°C</span>
+            </div>
+            <div class="text-[11px] font-mono text-gray-400 space-y-0.5 border-t border-gray-800/80 pt-1">
+                <div class="flex justify-between"><span>Gefühlt:</span> <span id="val-apparent" class="text-gray-200">--°C</span></div>
+                <div class="flex justify-between"><span>Taupunkt:</span> <span id="val-dewpoint" class="text-gray-200">--°C</span></div>
+            </div>
+        </div>
+
+        <!-- Metric 2: Pressure & Trend -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center text-[11px] font-mono text-gray-400">
+                <span>BAROMETRIE</span>
+                <span class="text-neongreen font-bold">hPa</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-3xl xl:text-4xl font-extrabold font-mono text-neongreen tracking-tight" id="val-pressure">--</span>
+                <span class="text-xs text-gray-400 font-mono">hPa</span>
+            </div>
+            <div class="text-[11px] font-mono text-gray-400 space-y-0.5 border-t border-gray-800/80 pt-1">
+                <div class="flex justify-between"><span>Meereshöhe:</span> <span id="val-seapressure" class="text-gray-200">-- hPa</span></div>
+                <div class="flex justify-between"><span>Vapor Deficit:</span> <span id="val-vpd" class="text-gray-200">-- kPa</span></div>
+            </div>
+        </div>
+
+        <!-- Metric 3: Moisture & Precip -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center text-[11px] font-mono text-gray-400">
+                <span>HYGROMETRIE</span>
+                <span class="text-neonyellow font-bold">%</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-3xl xl:text-4xl font-extrabold font-mono text-neonyellow tracking-tight" id="val-humidity">--</span>
+                <span class="text-xs text-gray-400 font-mono">%</span>
+            </div>
+            <div class="text-[11px] font-mono text-gray-400 space-y-0.5 border-t border-gray-800/80 pt-1">
+                <div class="flex justify-between"><span>Niederschlag:</span> <span id="val-precip" class="text-gray-200">-- mm</span></div>
+                <div class="flex justify-between"><span>Sättigung:</span> <span id="val-sat" class="text-gray-200">-- g/m³</span></div>
+            </div>
+        </div>
+
+        <!-- Metric 4: Wind Vector -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center text-[11px] font-mono text-gray-400">
+                <span>ANEMOMETRIE</span>
+                <span class="text-neonpurple font-bold">km/h</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-3xl xl:text-4xl font-extrabold font-mono text-neonpurple tracking-tight" id="val-wind">--</span>
+                <span class="text-xs text-gray-400 font-mono">km/h</span>
+            </div>
+            <div class="text-[11px] font-mono text-gray-400 space-y-0.5 border-t border-gray-800/80 pt-1">
+                <div class="flex justify-between"><span>Böen:</span> <span id="val-gusts" class="text-gray-200">-- km/h</span></div>
+                <div class="flex justify-between"><span>Vektor:</span> <span id="val-winddir" class="text-gray-200">--°</span></div>
+            </div>
+        </div>
+
+        <!-- Metric 5: Radiation & Solar -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center text-[11px] font-mono text-gray-400">
+                <span>RADIOMETRIE</span>
+                <span class="text-amber-400 font-bold">W/m²</span>
+            </div>
+            <div class="flex items-baseline gap-1.5">
+                <span class="text-3xl xl:text-4xl font-extrabold font-mono text-amber-400 tracking-tight" id="val-uv">--</span>
+                <span class="text-xs text-gray-400 font-mono">UV</span>
+            </div>
+            <div class="text-[11px] font-mono text-gray-400 space-y-0.5 border-t border-gray-800/80 pt-1">
+                <div class="flex justify-between"><span>Strahlung:</span> <span id="val-radiation" class="text-gray-200">-- W/m²</span></div>
+                <div class="flex justify-between"><span>Bewölkung:</span> <span id="val-cloudcover" class="text-gray-200">-- %</span></div>
+            </div>
+        </div>
+
+        <!-- Metric 6: Synoptic State & Geolocation Telemetry -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center text-[10px] font-mono text-gray-400">
+                <span class="text-neonblue font-semibold">SYNOP (WMO)</span>
+                <span class="flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-neongreen animate-pulse"></span>
+                    <span id="sync-time" class="text-gray-400">--:--</span>
+                    <span id="sync-elapsed" class="text-[9px] text-gray-500 font-mono">(0s)</span>
+                </span>
+            </div>
+            <div class="flex items-center justify-center my-auto" id="val-condition">
+                <!-- Dynamic SVG Weather Icon -->
+            </div>
+            <div class="text-[10px] font-mono text-gray-400 space-y-0.5 border-t border-gray-800/80 pt-1 flex justify-between">
+                <span>WMO-Code: <span id="val-wmocode" class="text-neonblue">--</span></span>
+                <span class="text-emerald-400 font-medium">LIVE (60s)</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MIDDLE SECTION: 24-Hour Diurnal Evolution Charts -->
+    <div class="grid grid-cols-2 gap-2.5 h-[32%] min-h-0">
+        
+        <!-- 24h Temperature vs Dew Point -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col h-full min-h-0">
+            <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-gray-400">
+                <span class="text-neonblue">DIURNAL PROFIL (24H) — THERMODYNAMIK & TAUPUNKT</span>
+                <span class="text-gray-500">°C vs UTC/Lokal</span>
+            </div>
+            <div class="relative flex-1 w-full min-h-0">
+                <canvas id="chart-24h-temp"></canvas>
+            </div>
+        </div>
+
+        <!-- 24h Pressure & Precipitation -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col h-full min-h-0">
+            <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-gray-400">
+                <span class="text-neongreen">DIURNAL PROFIL (24H) — BAROMETRIE & NIEDERSCHLAG</span>
+                <span class="text-gray-500">hPa & mm</span>
+            </div>
+            <div class="relative flex-1 w-full min-h-0">
+                <canvas id="chart-24h-baro"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- BOTTOM SECTION: 7-Day Weekly Evolution Charts -->
+    <div class="grid grid-cols-3 gap-2.5 h-[32%] min-h-0">
+        
+        <!-- 7-Day Temp Extremes (2 Columns wide) -->
+        <div class="col-span-2 glow-card rounded-lg p-2.5 flex flex-col h-full min-h-0">
+            <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-gray-400">
+                <span class="text-neonblue">WOCHENVERLAUF (7 TAGE) — MIN/MAX TEMPERATUR & BÖENSPITZEN</span>
+                <span class="text-gray-500">°C & km/h</span>
+            </div>
+            <div class="relative flex-1 w-full min-h-0">
+                <canvas id="chart-7d-temp"></canvas>
+            </div>
+        </div>
+
+        <!-- 7-Day Precipitation Summary -->
+        <div class="glow-card rounded-lg p-2.5 flex flex-col h-full min-h-0">
+            <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-gray-400">
+                <span class="text-neonyellow">AKKUMULIERTER NIEDERSCHLAG (7 TAGE)</span>
+                <span class="text-gray-500">mm / Tag</span>
+            </div>
+            <div class="relative flex-1 w-full min-h-0">
+                <canvas id="chart-7d-precip"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FOOTER SECTION: Prayer Times & Countdown (Edge-to-Edge Bar) -->
+    <div class="glow-card rounded-lg px-4 py-1.5 h-[10%] flex items-center justify-between gap-4 border-t border-gray-800">
+        
+        <!-- Left Side: Prayer Countdown -->
+        <div class="flex items-center gap-3 w-[32%] border-r border-gray-800/80 pr-4">
+            <div class="flex flex-col">
+                <span class="text-[10px] font-mono text-gray-400 uppercase tracking-wider" id="prayer-status-lbl">Kalan Süre:</span>
+                <span class="text-xs font-bold text-neonblue font-mono" id="next-prayer-title">--</span>
+            </div>
+            <div class="text-2xl xl:text-3xl font-extrabold font-mono text-neongreen tracking-tight ml-auto" id="prayer-countdown">
+                --:--:--
+            </div>
+        </div>
+
+        <!-- Right Side: 6 Prayer Times Horizontal Bar -->
+        <div class="grid grid-cols-6 gap-2 w-[68%] h-full items-center">
+            <div class="vakit-item border border-gray-800/80 rounded px-2 py-1 flex flex-col items-center justify-center bg-gray-900/40" id="pv-0">
+                <span class="text-[9px] font-mono text-gray-400 uppercase">İmsak</span>
+                <span class="text-sm font-bold font-mono text-gray-200" id="pt-0">--:--</span>
+            </div>
+            <div class="vakit-item border border-gray-800/80 rounded px-2 py-1 flex flex-col items-center justify-center bg-gray-900/40" id="pv-1">
+                <span class="text-[9px] font-mono text-gray-400 uppercase">Güneş</span>
+                <span class="text-sm font-bold font-mono text-gray-200" id="pt-1">--:--</span>
+            </div>
+            <div class="vakit-item border border-gray-800/80 rounded px-2 py-1 flex flex-col items-center justify-center bg-gray-900/40" id="pv-2">
+                <span class="text-[9px] font-mono text-gray-400 uppercase">Öğle</span>
+                <span class="text-sm font-bold font-mono text-gray-200" id="pt-2">--:--</span>
+            </div>
+            <div class="vakit-item border border-gray-800/80 rounded px-2 py-1 flex flex-col items-center justify-center bg-gray-900/40" id="pv-3">
+                <span class="text-[9px] font-mono text-gray-400 uppercase">İkindi</span>
+                <span class="text-sm font-bold font-mono text-gray-200" id="pt-3">--:--</span>
+            </div>
+            <div class="vakit-item border border-gray-800/80 rounded px-2 py-1 flex flex-col items-center justify-center bg-gray-900/40" id="pv-4">
+                <span class="text-[9px] font-mono text-gray-400 uppercase">Akşam</span>
+                <span class="text-sm font-bold font-mono text-gray-200" id="pt-4">--:--</span>
+            </div>
+            <div class="vakit-item border border-gray-800/80 rounded px-2 py-1 flex flex-col items-center justify-center bg-gray-900/40" id="pv-5">
+                <span class="text-[9px] font-mono text-gray-400 uppercase">Yatsı</span>
+                <span class="text-sm font-bold font-mono text-gray-200" id="pt-5">--:--</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SCRIPT & API ENGINE -->
+    <script>
+        let chart24hTemp = null;
+        let chart24hBaro = null;
+        let chart7dTemp = null;
+        let chart7dPrecip = null;
+
+        let lastSyncTimestamp = null;
+
+        // Prayer Engine Variables & Setup
+        const PROXY_URL = 'https://namaz-vakitleri.ditib-hohenlimburg.workers.dev/';
+        const PRAYER_KEY = 'diy-prayer-v6';
+        const vakitNames = ['İmsak', 'Güneş', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+        let prayers = [];
+
+        function hhmm(v) {
+            if (!v) return null;
+            const m = String(v).match(/(\d{1,2}):(\d{2})/);
+            return m ? `${m[1].padStart(2,'0')}:${m[2]}` : null;
+        }
+
+        async function fetchPrayer() {
+            try {
+                const res = await fetch(PROXY_URL);
+                if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
+                const data = await res.json();
+                const payload = data?.data ?? data;
+                
+                let d = null;
+                if (Array.isArray(payload)) {
+                    const now = new Date();
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const year = now.getFullYear();
+                    const todayStr = `${day}.${month}.${year}`;
+                    d = payload.find(item => item.gregorianDateShort === todayStr) || payload[0];
+                } else {
+                    d = payload;
+                }
+
+                const times = [
+                    hhmm(d.fajr), hhmm(d.sunrise), hhmm(d.dhuhr),
+                    hhmm(d.asr), hhmm(d.maghrib), hhmm(d.isha)
+                ];
+
+                if (times.some(t => !t)) throw new Error('Eksik vakit');
+
+                prayers = times;
+                try { localStorage.setItem(PRAYER_KEY, JSON.stringify({ times, dateStr: new Date().toDateString() })); } catch(_) {}
+                renderPrayerTimes();
+            } catch(e) {
+                console.error('Namaz vakitleri çekilemedi:', e);
+                try {
+                    const raw = localStorage.getItem(PRAYER_KEY);
+                    if (raw) {
+                        const c = JSON.parse(raw);
+                        if (c?.times?.length === 6) {
+                            prayers = c.times;
+                            renderPrayerTimes();
+                        }
+                    }
+                } catch(_) {}
+            }
+        }
+
+        function renderPrayerTimes() {
+            prayers.forEach((t, i) => {
+                const el = document.getElementById(`pt-${i}`);
+                if (el) el.innerText = t;
+            });
+        }
+
+        function prayerEngine() {
+            if (!prayers.length || !prayers[0] || prayers[0] === '--:--') return;
+
+            const now = new Date();
+            const cur = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+            const toS = s => { const [h, m] = s.split(':').map(Number); return h * 3600 + m * 60; };
+            const secs = prayers.map(toS);
+
+            let ai = -1;
+            for (let i = 0; i < 6; i++) { if (cur >= secs[i]) ai = i; }
+            if (ai === -1) ai = 5;
+
+            // Highlight Active Prayer Card
+            for (let i = 0; i < 6; i++) {
+                const card = document.getElementById(`pv-${i}`);
+                if (card) {
+                    if (i === ai) card.classList.add('active');
+                    else card.classList.remove('active');
+                }
+            }
+
+            const ni = (ai + 1) % 6;
+            let diff = secs[ni] - cur;
+            if (diff < 0) diff += 86400;
+
+            const h = Math.floor(diff / 3600);
+            const m = Math.floor((diff % 3600) / 60);
+            const s = diff % 60;
+            const pad = n => String(n).padStart(2, '0');
+
+            document.getElementById('next-prayer-title').innerText = `${vakitNames[ni]} Vaktine:`;
+            document.getElementById('prayer-countdown').innerText = `${pad(h)}:${pad(m)}:${pad(s)}`;
+        }
+
+        function getWeatherIconSVG(code) {
+            // Sun (Clear)
+            if (code === 0) {
+                return `<svg class="w-10 h-10 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>`;
+            }
+            // Partly Cloudy
+            if (code === 1 || code === 2) {
+                return `<svg class="w-10 h-10 text-sky-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>`;
+            }
+            // Overcast / Fog
+            if (code === 3 || code === 45 || code === 48) {
+                return `<svg class="w-10 h-10 text-slate-400 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h11a4 4 0 10-.1-7.999 4.001 4.001 0 00-7.78 1.096A3.996 3.996 0 003 15z"></path></svg>`;
+            }
+            // Rain / Drizzle
+            if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+                return `<svg class="w-10 h-10 text-blue-400 drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 16.2A4.5 4.5 0 0017.5 8h-1.8A7 7 0 104 14.9M16 14v6m-4-4v6m-4-2v6"></path></svg>`;
+            }
+            // Snow
+            if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
+                return `<svg class="w-10 h-10 text-indigo-200 drop-shadow-[0_0_8px_rgba(199,210,254,0.5)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20m10-10H2m15.071-7.071L6.929 17.071M17.071 17.071L6.929 6.929"></path></svg>`;
+            }
+            // Thunderstorm
+            if (code >= 95) {
+                return `<svg class="w-10 h-10 text-amber-300 drop-shadow-[0_0_10px_rgba(252,211,77,0.6)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>`;
+            }
+            // Default Cloud
+            return `<svg class="w-10 h-10 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>`;
+        }
+
+        function degToCompass(num) {
+            const val = Math.floor((num / 22.5) + 0.5);
+            const arr = ["N", "NNO", "NO", "ONO", "O", "OSO", "SO", "SSO", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+            return arr[(val % 16)];
+        }
+
+        async function fetchWeatherData() {
+            const latitude = 51.3608;
+            const longitude = 7.4717;
+
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
+                `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,dew_point_2m,uv_index,direct_normal_irradiance,cloud_cover,vapour_pressure_deficit` +
+                `&hourly=temperature_2m,dew_point_2m,surface_pressure,precipitation,precipitation_probability` +
+                `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max` +
+                `&timezone=Europe%2FBerlin&forecast_days=7`;
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                lastSyncTimestamp = new Date();
+                document.getElementById('sync-time').innerText = lastSyncTimestamp.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                updateSecondsTicker();
+
+                renderCurrentMetrics(data.current);
+                render24hCharts(data.hourly);
+                render7dCharts(data.daily);
+
+            } catch (err) {
+                console.error("Fehler beim Abrufen der Telemetriedaten:", err);
+            }
+        }
+
+        function updateSecondsTicker() {
+            if (!lastSyncTimestamp) return;
+            const now = new Date();
+            const elapsedSec = Math.floor((now - lastSyncTimestamp) / 1000);
+            document.getElementById('sync-elapsed').innerText = `(vor ${elapsedSec}s)`;
+        }
+
+        function renderCurrentMetrics(cur) {
+            document.getElementById('val-temp').innerText = cur.temperature_2m.toFixed(1);
+            document.getElementById('val-apparent').innerText = `${cur.apparent_temperature.toFixed(1)}°C`;
+            document.getElementById('val-dewpoint').innerText = `${cur.dew_point_2m.toFixed(1)}°C`;
+
+            document.getElementById('val-pressure').innerText = cur.surface_pressure.toFixed(0);
+            document.getElementById('val-seapressure').innerText = `${cur.pressure_msl.toFixed(0)} hPa`;
+            document.getElementById('val-vpd').innerText = cur.vapour_pressure_deficit ? `${cur.vapour_pressure_deficit.toFixed(2)} kPa` : '--';
+
+            document.getElementById('val-humidity').innerText = cur.relative_humidity_2m;
+            document.getElementById('val-precip').innerText = `${cur.precipitation.toFixed(1)} mm`;
+            document.getElementById('val-sat').innerText = `${(cur.relative_humidity_2m * 0.17).toFixed(1)} g/m³`;
+
+            document.getElementById('val-wind').innerText = cur.wind_speed_10m.toFixed(1);
+            document.getElementById('val-gusts').innerText = `${cur.wind_gusts_10m.toFixed(1)} km/h`;
+            document.getElementById('val-winddir').innerText = `${cur.wind_direction_10m}° (${degToCompass(cur.wind_direction_10m)})`;
+
+            document.getElementById('val-uv').innerText = cur.uv_index.toFixed(1);
+            document.getElementById('val-radiation').innerText = `${Math.round(cur.direct_normal_irradiance || 0)} W/m²`;
+            document.getElementById('val-cloudcover').innerText = `${cur.cloud_cover}%`;
+
+            document.getElementById('val-condition').innerHTML = getWeatherIconSVG(cur.weather_code);
+            document.getElementById('val-wmocode').innerText = cur.weather_code;
+        }
+
+        function render24hCharts(hourly) {
+            const hours = 24;
+            const labels = hourly.time.slice(0, hours).map(t => {
+                const d = new Date(t);
+                return `${d.getHours().toString().padStart(2, '0')}:00`;
+            });
+
+            const temps = hourly.temperature_2m.slice(0, hours);
+            const dewpoints = hourly.dew_point_2m.slice(0, hours);
+            const pressures = hourly.surface_pressure.slice(0, hours);
+            const precips = hourly.precipitation.slice(0, hours);
+
+            if (chart24hTemp) chart24hTemp.destroy();
+            const ctxTemp = document.getElementById('chart-24h-temp').getContext('2d');
+            chart24hTemp = new Chart(ctxTemp, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Temperatur (°C)',
+                            data: temps,
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Taupunkt (°C)',
+                            data: dewpoints,
+                            borderColor: '#c084fc',
+                            borderDash: [3, 3],
+                            tension: 0.3,
+                            borderWidth: 1.5,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: getCompactChartOptions('°C')
+            });
+
+            if (chart24hBaro) chart24hBaro.destroy();
+            const ctxBaro = document.getElementById('chart-24h-baro').getContext('2d');
+            chart24hBaro = new Chart(ctxBaro, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Luftdruck (hPa)',
+                            data: pressures,
+                            borderColor: '#34d399',
+                            yAxisID: 'yBaro',
+                            tension: 0.3,
+                            borderWidth: 2,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Niederschlag (mm)',
+                            data: precips,
+                            borderColor: '#fbbf24',
+                            backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                            fill: true,
+                            type: 'bar',
+                            yAxisID: 'yPrecip',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    ...getCompactChartOptions(''),
+                    scales: {
+                        x: getXScaleConfig(),
+                        yBaro: {
+                            type: 'linear',
+                            position: 'left',
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: { color: '#34d399', font: { family: 'JetBrains Mono', size: 9 } }
+                        },
+                        yPrecip: {
+                            type: 'linear',
+                            position: 'right',
+                            min: 0,
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#fbbf24', font: { family: 'JetBrains Mono', size: 9 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function render7dCharts(daily) {
+            const labels = daily.time.map(t => {
+                const d = new Date(t);
+                return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+            });
+
+            if (chart7dTemp) chart7dTemp.destroy();
+            const ctx7dTemp = document.getElementById('chart-7d-temp').getContext('2d');
+            chart7dTemp = new Chart(ctx7dTemp, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Max. Temp (°C)',
+                            data: daily.temperature_2m_max,
+                            borderColor: '#f87171',
+                            backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                            fill: false,
+                            tension: 0.3,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Min. Temp (°C)',
+                            data: daily.temperature_2m_min,
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            fill: false,
+                            tension: 0.3,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Max. Böen (km/h)',
+                            data: daily.wind_speed_10m_max,
+                            borderColor: '#c084fc',
+                            borderDash: [3, 3],
+                            tension: 0.3,
+                            borderWidth: 1.5
+                        }
+                    ]
+                },
+                options: getCompactChartOptions('°C / km/h')
+            });
+
+            if (chart7dPrecip) chart7dPrecip.destroy();
+            const ctx7dPrecip = document.getElementById('chart-7d-precip').getContext('2d');
+            chart7dPrecip = new Chart(ctx7dPrecip, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Niederschlag (mm)',
+                            data: daily.precipitation_sum,
+                            backgroundColor: 'rgba(56, 189, 248, 0.4)',
+                            borderColor: '#38bdf8',
+                            borderWidth: 1,
+                            borderRadius: 3
+                        }
+                    ]
+                },
+                options: getCompactChartOptions('mm')
+            });
+        }
+
+        function getXScaleConfig() {
+            return {
+                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 9 } }
+            };
+        }
+
+        function getCompactChartOptions(unit) {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#cbd5e1',
+                            font: { family: 'Inter', size: 10 },
+                            boxWidth: 10,
+                            padding: 6
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#111827',
+                        borderColor: '#374151',
+                        borderWidth: 1,
+                        titleFont: { family: 'JetBrains Mono', size: 11 },
+                        bodyFont: { family: 'JetBrains Mono', size: 10 }
+                    }
+                },
+                scales: {
+                    x: getXScaleConfig(),
+                    y: {
+                        grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                        ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 9 } }
+                    }
+                }
+            };
+        }
+
+        window.onload = function() {
+            fetchWeatherData();
+            fetchPrayer();
+
+            setInterval(fetchWeatherData, 60000);
+            setInterval(() => {
+                updateSecondsTicker();
+                prayerEngine();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>
